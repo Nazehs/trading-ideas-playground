@@ -1,0 +1,38 @@
+# Data manipulation and analysis
+pandas
+numpy
+
+# Data visualization
+matplotlib
+seaborn
+
+# Data fetching and APIs
+yfinance
+alpha_vantage
+
+# Backtesting framework
+backtrader
+
+# Machine learning libraries
+scikit-learn
+tensorflow
+keras  # For building neural networks
+xgboost  # For gradient boosting
+lightgbm  # For fast gradient boosting
+catboost  # For categorical boosting
+statsmodels  # For statistical models
+torch  # PyTorch for deep learning
+fastai  # High-level interface for PyTorch
+
+# Time series analysis
+prophet  # For forecasting time series data
+
+# Natural language processing (if needed)
+nltk  # Natural Language Toolkit
+spaCy  # For advanced NLP tasks
+
+# Jupyter Notebook for interactive coding
+jupyterlab
+
+# Miscellaneous
+tqdm  # Progress bars
