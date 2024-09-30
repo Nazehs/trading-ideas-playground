@@ -19,7 +19,6 @@ tensorflow
 keras  # For building neural networks
 xgboost  # For gradient boosting
 lightgbm  # For fast gradient boosting
-catboost  # For categorical boosting
 statsmodels  # For statistical models
 torch  # PyTorch for deep learning
 fastai  # High-level interface for PyTorch
