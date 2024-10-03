@@ -31,6 +31,7 @@ input double entryPriceThreshold = 0.0001; // Minimum price change to enter a tr
 input ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT; // Timeframe for analysis.
 input int magicNumber = 00013; // Magic number for identifying trades.
 input int trailingStopTriggerPoints = 10; // Trigger for activating trailing stop loss.
+input double riskPercent = 2; // Risk percentage per trade (e.g., 2% of account balance)lo
 // Input Parameters
 input int lookbackWindow = 10; // Number of bars to look back for swing analysis.
 input int shoulder = 5;       // Number of bars on each side for peak finding.
@@ -165,7 +166,7 @@ void OnTick()
    if(isNewBar() && !buyOrderPlaced && buyOrderCount <= 0)
      {
       // Place Buy Order if a swing low is detected on the higher timeframe.
-      if(FindLowestBarIndex(timeframe, lookbackWindow) == 1)
+      if(FindExtremeBarIndex(timeframe, lookbackWindow) == 1)
         {
          PlaceBuyOrder();
          buyOrderPlaced = true; // Set flag to true after placing order
@@ -175,7 +176,7 @@ void OnTick()
    if(!sellOrderPlaced && sellOrderCount <= 0)
      {
       // Place Sell Order if a swing high is detected on the higher timeframe.
-      if(FindHighestBarIndex(timeframe, lookbackWindow) == 1)
+      if(FindExtremeBarIndex(timeframe, lookbackWindow, true) == 1)
         {
 
          PlaceSellOrder();
@@ -185,29 +186,23 @@ void OnTick()
 // Update order and position counts.
    openOrderAndPositions();
   }
-
 //+------------------------------------------------------------------+
-//| Find the index of the highest bar                              |
+//| Find the index of the highest/lowest bar                        |
 //+------------------------------------------------------------------+
-int FindHighestBarIndex(ENUM_TIMEFRAMES timeframe, int count, int startBar = 0)
-  {
-   return iHighest(NULL, timeframe, MODE_HIGH, count, startBar);
-  }
-
-//+------------------------------------------------------------------+
-//| Find the index of the lowest bar                               |
-//+------------------------------------------------------------------+
-int FindLowestBarIndex(ENUM_TIMEFRAMES timeframe, int count, int startBar = 0)
-  {
-   return iLowest(NULL, timeframe, MODE_LOW, count, startBar);
-  }
+int FindExtremeBarIndex(ENUM_TIMEFRAMES timeframe, int count, int startBar = 0, bool isHighest = true)
+{
+   if (isHighest)
+      return iHighest(NULL, timeframe, MODE_HIGH, count, startBar);
+   else
+      return iLowest(NULL, timeframe, MODE_LOW, count, startBar);
+}
 
 //+------------------------------------------------------------------+
 //| Find a swing high                                               |
 //+------------------------------------------------------------------+
 double FindSwingHigh(int lookbackWindow, ENUM_TIMEFRAMES timeframe)
   {
-   int highestBarIndex = FindHighestBarIndex(timeframe, lookbackWindow);
+   int highestBarIndex = FindExtremeBarIndex(timeframe, lookbackWindow, true);
    return iHigh(NULL, timeframe, highestBarIndex);
   }
 
@@ -216,7 +211,7 @@ double FindSwingHigh(int lookbackWindow, ENUM_TIMEFRAMES timeframe)
 //+------------------------------------------------------------------+
 double FindSwingLow(int lookbackWindow, ENUM_TIMEFRAMES timeframe)
   {
-   int lowestBarIndex = FindLowestBarIndex(timeframe, lookbackWindow);
+   int lowestBarIndex = FindExtremeBarIndex(timeframe, lookbackWindow);
    return iLow(NULL, timeframe, lowestBarIndex);
   }
 
@@ -266,7 +261,8 @@ void PlaceBuyOrder()
 // Calculate initial stop loss and take profit levels.
    initialStopLoss = currentBid - (stopLossPoints * _Point);
    takeProfit = currentBid + (takeProfitPoints * _Point);
-
+// Calculate the lot size based on risk percentage.
+   double lotSize = CalculateLotSize(riskPercent, initialStopLoss, currentBid); 
 // Open a buy order if conditions are met.
    if(trade.Buy(lotSize, _Symbol, currentBid, initialStopLoss, takeProfit))
      {
@@ -290,7 +286,8 @@ void PlaceSellOrder()
 // Calculate initial stop loss and take profit levels.
    initialStopLoss = currentAsk + (stopLossPoints * _Point);
    takeProfit = currentAsk - (takeProfitPoints * _Point);
-
+// Calculate the lot size based on risk percentage.
+   double lotSize = CalculateLotSize(riskPercent, initialStopLoss, currentAsk); 
 // Open a sell order if conditions are met.
    if(trade.Sell(lotSize, _Symbol, currentAsk, initialStopLoss, takeProfit))
      {
@@ -449,4 +446,20 @@ void ManageTrailingStop()
         }
      }
   }
+
+//+------------------------------------------------------------------+
+//| Calculate Lot Size based on Risk Percentage                   |
+//+------------------------------------------------------------------+
+double CalculateLotSize(double riskPercent, double stopLoss, double entryPrice)
+{
+   // Get Account Equity and Calculate Account Balance.
+   double accountEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double riskAmount = accountBalance * (riskPercent / 100);
+
+   // Calculate lot size.
+   double lotSize = NormalizeDouble(riskAmount / ((stopLoss - entryPrice) * _Point), SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+
+   return lotSize;
+}
 //+------------------------------------------------------------------+
