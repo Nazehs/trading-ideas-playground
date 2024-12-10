@@ -47,7 +47,7 @@ input bool  useMaxDrawDownOnTrade = true;      // close trade based on maximimum
 
 input group "===== Trade Settings ====";
 input int MagicNumber = 13;                        // Magic number for identifying trades
-input string tradeComment = "Scalper Nigs";       // Comment for trades
+input string tradeComment = "";       // Comment for trades
 input int expirationBars = 100;                    // Expiration time for pending orders
 input int orderDistancePoints = 50;                // Distance from entry price for pending order placement
 input uint     MaxBarHoldingDuration  = 670;                 // Maximum duration to hold a position in bars
@@ -66,7 +66,6 @@ input EndHour endHour = 0;                 // End hour for trading
 //+------------------------------------------------------------------+
 int startHourChoice; // Chosen start hour
 int endHourChoice;   // Chosen end hour
-string appName ="SCALPINGBOTVIX" ;
 
 
 //+------------------------------------------------------------------+
@@ -332,10 +331,10 @@ void SendSellOrder(double entryPrice)
       lotSize = lotSizeOptimization(stopLoss - entryPrice);
      }
    datetime expiration = iTime(_Symbol, timeframe, 0) + expirationBars * PeriodSeconds(timeframe);
-   string tradeComment =  appName + " - Sell Order";
+   string tradeComments =  tradeComment + " - Sell Order";
    if(takeProfit <= currentPrice && stopLoss >= currentPrice)
      {
-      trade.SellStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComment);
+      trade.SellStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComments);
      }
   }
 
@@ -359,10 +358,10 @@ void SendBuyOrder(double entryPrice)
       lotSize = lotSizeOptimization(entryPrice - stopLoss);
      }
    datetime expiration = iTime(_Symbol, timeframe, 0) + expirationBars * PeriodSeconds(timeframe);
-   string tradeComment = appName + " - Buy Order";
+   string tradeComments = tradeComment + " - Buy Order";
    if(takeProfit >= currentPrice && stopLoss <= currentPrice)
      {
-      trade.BuyStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComment);
+      trade.BuyStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComments);
      }
   }
 //+------------------------------------------------------------------+

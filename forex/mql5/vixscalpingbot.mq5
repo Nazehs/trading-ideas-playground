@@ -50,7 +50,7 @@ input double DrawdownPercent  = 5.0;          // Drawdown percentage threshold
 
 input group "===== Trade Settings ====";
 input int MagicNumber = 13;                        // Magic number for identifying trades
-input string tradeComment = "Scalper Nigs";       // Comment for trades
+input string tradeComment = "";       // Comment for trades
 input int expirationBars = 100;                    // Expiration time for pending orders
 input int orderDistancePoints = 50;                // Distance from entry price for pending order placement
 
@@ -76,7 +76,6 @@ input uint SLCandlesLookBack = 50;           // number of candles to look back f
 //+------------------------------------------------------------------+
 int startHourChoice; // Chosen start hour
 int endHourChoice;   // Chosen end hour
-string appName ="vixScalpingBot-" +VERSION ;
 
 int handle_atr; // Handle for the ATR indicator
 double atrBuffer[]; // Buffer to store ATR values
@@ -456,7 +455,7 @@ void SendBuyOrder(double entryPrice)
 
 // Set order expiration time
    datetime expiration = iTime(_Symbol, timeframe, 0) + expirationBars * PeriodSeconds(timeframe);
-   string tradeComment = appName + " - BUY ORDER"  ;
+   string tradeComments = tradeComment + " - Buy order - "  +VERSION ;
 
 // Log order details
    PrintFormat("Buy Order: Entry=%.5f, SL=%.5f, TP=%.5f, ATR=%.5f, LotSize=%.2f",
@@ -465,7 +464,7 @@ void SendBuyOrder(double entryPrice)
 // Check conditions for placing the buy order
    if(takeProfit >= currentPrice && stopLoss <= currentPrice)
      {
-      if(trade.BuyStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComment) == -1)
+      if(trade.BuyStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComments) == -1)
         {
          Print("Error Placing Buy Order: ", trade.ResultRetcodeDescription());
         }
@@ -528,7 +527,7 @@ void SendSellOrder(double entryPrice)
 
 // Set order expiration time
    datetime expiration = iTime(_Symbol, timeframe, 0) + expirationBars * PeriodSeconds(timeframe);
-   string tradeComment = appName + " - Sell Order";
+   string tradeComments = tradeComment + " - Sell Order - " + VERSION;
 
 // Log order details
    PrintFormat("Sell Order: Entry=%.5f, SL=%.5f, TP=%.5f, ATR=%.5f, LotSize=%.2f",
@@ -537,7 +536,7 @@ void SendSellOrder(double entryPrice)
 // Check conditions for placing the sell order
    if(takeProfit <= currentPrice && stopLoss >= currentPrice)    // Check order validity
      {
-      if(trade.SellStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComment) == -1)
+      if(trade.SellStop(lotSize, entryPrice, _Symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expiration, tradeComments) == -1)
         {
          Print("Error Placing Sell Order: ", trade.ResultRetcodeDescription());
         }
