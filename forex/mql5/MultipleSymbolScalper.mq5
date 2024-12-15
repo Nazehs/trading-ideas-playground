@@ -6,6 +6,9 @@
 #property copyright "Copyright 2024, Open lab technologies"
 #property link "https://www.openlabtechnologies.com"
 #property version "1.01"
+#define EA_VERSION "1.0.0"
+#define EA_RELEASE_DATE "2024.12.14"
+#define EA_NAME "Multiple Symbol Scalper"
 
 #include <Trade\Trade.mqh>
 #include <Trade\OrderInfo.mqh>
@@ -202,11 +205,104 @@ AssetConfig assetConfigs[] = {
 
 NewsEvent newsEvents[]; // Array to hold news events
 
+int allowedAccounts[] = {187076953, 87654321}; // List of allowed real account numbers
+
+// Watermark variables
+string watermarkName = "DemoWatermark";
+color watermarkColor = clrRed;
+int watermarkFontSize = 10;
+ENUM_BASE_CORNER watermarkCorner = CORNER_LEFT_UPPER;
+int xDistance = 5;
+int yDistance = 5;
+string watermarkFont = "Arial";
+
+void PrintVersion()
+{
+	Print("EA Version: ", EA_VERSION, " | Release Date: ", EA_RELEASE_DATE);
+}
+
+bool IsAccountAllowed()
+{
+	// Always allow demo accounts
+	if (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO)
+		return true;
+
+	// For live accounts, check if they are in the whitelist
+	if (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL)
+	{
+		for (int i = 0; i < ArraySize(allowedAccounts); i++)
+		{
+			if (AccountInfoInteger(ACCOUNT_LOGIN) == allowedAccounts[i])
+				return true;
+		}
+		return false; // Live account not found in whitelist
+	}
+
+	return false; // Any other account type is not allowed
+}
+
+void CreateDemoWatermark()
+{
+	// Only create watermark for demo accounts
+	if (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO)
+	{
+		string displayText = EA_NAME + " (DEMO)";
+
+		ObjectCreate(0, watermarkName, OBJ_LABEL, 0, 0, 0);
+		ObjectSetString(0, watermarkName, OBJPROP_TEXT, displayText);
+		ObjectSetString(0, watermarkName, OBJPROP_FONT, watermarkFont);
+		ObjectSetInteger(0, watermarkName, OBJPROP_CORNER, watermarkCorner);
+		ObjectSetInteger(0, watermarkName, OBJPROP_XDISTANCE, xDistance);
+		ObjectSetInteger(0, watermarkName, OBJPROP_YDISTANCE, yDistance);
+		ObjectSetInteger(0, watermarkName, OBJPROP_COLOR, watermarkColor);
+		ObjectSetInteger(0, watermarkName, OBJPROP_FONTSIZE, watermarkFontSize);
+		ObjectSetInteger(0, watermarkName, OBJPROP_SELECTABLE, false);
+		ObjectSetInteger(0, watermarkName, OBJPROP_HIDDEN, true);
+		ObjectSetInteger(0, watermarkName, OBJPROP_BACK, false);
+		ChartRedraw(0);
+	}
+	else
+	{
+		// For live accounts, just show the EA name without the DEMO label
+		string displayText = EA_NAME;
+
+		ObjectCreate(0, watermarkName, OBJ_LABEL, 0, 0, 0);
+		ObjectSetString(0, watermarkName, OBJPROP_TEXT, displayText);
+		ObjectSetString(0, watermarkName, OBJPROP_FONT, watermarkFont);
+		ObjectSetInteger(0, watermarkName, OBJPROP_CORNER, watermarkCorner);
+		ObjectSetInteger(0, watermarkName, OBJPROP_XDISTANCE, xDistance);
+		ObjectSetInteger(0, watermarkName, OBJPROP_YDISTANCE, yDistance);
+		ObjectSetInteger(0, watermarkName, OBJPROP_COLOR, clrDarkGray); // Different color for live accounts
+		ObjectSetInteger(0, watermarkName, OBJPROP_FONTSIZE, watermarkFontSize);
+		ObjectSetInteger(0, watermarkName, OBJPROP_SELECTABLE, false);
+		ObjectSetInteger(0, watermarkName, OBJPROP_HIDDEN, true);
+		ObjectSetInteger(0, watermarkName, OBJPROP_BACK, false);
+		ChartRedraw(0);
+	}
+}
+
+void RemoveDemoWatermark()
+{
+	ObjectDelete(0, watermarkName);
+	ChartRedraw(0);
+}
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
 {
+	PrintVersion();
+	if (!IsAccountAllowed())
+	{
+		if (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL)
+			Print("This EA is not authorized for this live account. Please contact support for authorization.");
+		else
+			Print("This EA is not authorized for this account type.");
+		return INIT_FAILED;
+	}
+	CreateDemoWatermark();
+
 	// Validate that the sum of max buy and sell orders per symbol does not exceed max total trades
 	if (maxBuyOrdersPerSymbol + maxSellOrdersPerSymbol > maxTotalTrades)
 	{
@@ -705,8 +801,8 @@ void LogToMongoDB(string jsonData)
 	char post[];
 	StringToCharArray(jsonData, post, 0, StringLen(jsonData));
 
-	int timeout = 5000;								   // 5 seconds timeout
-	string url = "http://your-api-server-address/log"; // Replace with your actual API endpoint
+	int timeout = 5000;									  // 5 seconds timeout
+	string url = "https://mt5-trader-logs.deno.dev/logs"; // API endpoint for logging
 
 	// Send HTTP POST request
 	int res = WebRequest("POST", url, headers, timeout, post, result, headers);
