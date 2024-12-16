@@ -1,14 +1,14 @@
 //+------------------------------------------------------------------+
-//|                                                  ScalpingBot.mq5 |
+//|                                                  BreakoutGuard EA.mq5 |
 //|                            Copyright 2024, Open lab technologies |
 //|                              https://www.openlabtechnologies.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Open lab technologies"
 #property link "https://www.openlabtechnologies.com"
-#property version "1.01"
-#define EA_VERSION "1.0.0"
-#define EA_RELEASE_DATE "2024.12.14"
-#define EA_NAME "Multiple Symbol Scalper"
+#property version "1.1"
+#define EA_VERSION "1.1"
+#define EA_RELEASE_DATE "2024.12.16"
+#define EA_NAME "BreakoutGuard EA"
 
 #include <Trade\Trade.mqh>
 #include <Trade\OrderInfo.mqh>
@@ -79,15 +79,24 @@ enum EndHour
 };
 
 //+------------------------------------------------------------------+
+//| Structures                                                       |
+//+------------------------------------------------------------------+
+struct SwingPoint
+{
+	double price;
+	datetime time;
+	bool isHigh; // true for high swing, false for low swing
+};
+
+//+------------------------------------------------------------------+
 //| Input Parameters                                                 |
 //+------------------------------------------------------------------+
 input group "===== Risk Management ====" input double riskPercentage = 2.0; // Risk percentage for position sizing
 input double DrawdownPercent = 5.0;											// Drawdown percentage threshold
 input bool useDrawdownPercent = false;										// Enable drawdown percent
-input int maxTrades = 5;													// Maximum number of trades allowed at a time
-input int maxTotalTrades = 10;												// Maximum total number of trades across all assets
-input int maxBuyOrdersPerSymbol = 3;										// Maximum number of buy orders allowed per symbol
-input int maxSellOrdersPerSymbol = 3;										// Maximum number of sell orders allowed per symbol
+input int maxTotalTrades = 2;												// Maximum total number of trades across all assets
+input int maxBuyOrdersPerSymbol = 1;										// Maximum number of buy orders allowed per symbol
+input int maxSellOrdersPerSymbol = 1;										// Maximum number of sell orders allowed per symbol
 
 input group "===== Order Management ====" input int MagicNumber = 13; // Magic number for identifying trades
 input string tradeComment = "";										  // Comment for trades
@@ -121,68 +130,80 @@ struct AssetConfig
 //| Asset-Specific Input Parameters                                  |
 //+------------------------------------------------------------------+
 
-input group "==== BTCUSD Parameters ====" input bool BTCUSDm_Enabled = true; // Enable BTCUSD trading
-input double BTCUSDm_TakeProfitPercentage = 0.2;							 // TP percentage for BTCUSD
-input double BTCUSDm_StopLossPercentage = 0.2;								 // SL percentage for BTCUSD
-input double BTCUSDm_TrailingStopLossAsPercentOfTP = 5;						 // Trailing SL as a percentage of TP for BTCUSD
-input double BTCUSDm_TrailingStopLossTriggerAsPercentOfTP = 7;				 // Trailing SL trigger as a percentage of TP for BTCUSD
-input double BTCUSDm_OrderDistancePoints = 100;								 // Minimum distance in points for placing orders for BTCUSD
-input int BTCUSDm_ExpirationBars = 100;										 // Number of bars after which the order expires for BTCUSD
-input int BTCUSDm_NumberOfCandlesRange = 200;								 // Number of candles to consider for high/low search for BTCUSD
-input int BTCUSDm_BarsToLookBack = 5;										 // Number of bars to look back for swing high/low for BTCUSD
-input StartHour BTCUSDm_StartHour = 0;										 // Start hour for trading BTCUSD
-input EndHour BTCUSDm_EndHour = 0;											 // End hour for trading BTCUSD
-input ENUM_TIMEFRAMES BTCUSDm_Timeframe = PERIOD_CURRENT;					 // BTCUSD timeframe input
+input group "==== BTCUSD Parameters ===="
 
-input group "==== US30 Parameters ====" input bool US30m_Enabled = true; // Enable US30 trading
-input double US30m_TakeProfitPercentage = 0.2;							 // TP percentage for US30
-input double US30m_StopLossPercentage = 0.2;							 // SL percentage for US30
-input double US30m_TrailingStopLossAsPercentOfTP = 5;					 // Trailing SL as a percentage of TP for US30
-input double US30m_TrailingStopLossTriggerAsPercentOfTP = 7;			 // Trailing SL trigger as a percentage of TP for US30
-input double US30m_OrderDistancePoints = 100;							 // Minimum distance in points for placing orders for US30
-input int US30m_ExpirationBars = 100;									 // Number of bars after which the order expires for US30
-input int US30m_NumberOfCandlesRange = 200;								 // Number of candles to consider for high/low search for US30
-input int US30m_BarsToLookBack = 5;										 // Number of bars to look back for swing high/low for US30
-input StartHour US30m_StartHour = 0;									 // Start hour for trading US30
-input EndHour US30m_EndHour = 0;										 // End hour for trading US30
-input ENUM_TIMEFRAMES US30m_Timeframe = PERIOD_CURRENT;					 // US30 trading timeframe
+	input bool BTCUSDm_Enabled = false;						   // Enable BTCUSD trading
+input double BTCUSDm_TakeProfitPercentage = 0.2;			   // TP percentage for BTCUSD
+input double BTCUSDm_StopLossPercentage = 0.2;				   // SL percentage for BTCUSD
+input double BTCUSDm_TrailingStopLossAsPercentOfTP = 5;		   // Trailing SL as a percentage of TP for BTCUSD
+input double BTCUSDm_TrailingStopLossTriggerAsPercentOfTP = 7; // Trailing SL trigger as a percentage of TP for BTCUSD
+input double BTCUSDm_OrderDistancePoints = 100;				   // Minimum distance in points for placing orders for BTCUSD
+input int BTCUSDm_ExpirationBars = 100;						   // Number of bars after which the order expires for BTCUSD
+input int BTCUSDm_NumberOfCandlesRange = 200;				   // Number of candles to consider for high/low search for BTCUSD
+input int BTCUSDm_BarsToLookBack = 5;						   // Number of bars to look back for swing high/low for BTCUSD
+input StartHour BTCUSDm_StartHour = 0;						   // Start hour for trading BTCUSD
+input EndHour BTCUSDm_EndHour = 0;							   // End hour for trading BTCUSD
+input ENUM_TIMEFRAMES BTCUSDm_Timeframe = PERIOD_CURRENT;	   // BTCUSD timeframe input
 
-input group "==== US100 Parameters ====" input bool US100m_Enabled = true;	 // Enable US100 trading
-input double US100m_TakeProfitPercentage = 0.2;								 // TP percentage for US100
-input double US100m_StopLossPercentage = 0.2;								 // SL percentage for US100
-input double US100m_TrailingStopLossAsPercentOfTP = 5;						 // Trailing SL as a percentage of TP for US100
-input double US100m_TrailingStopLossTriggerAsPercentOfTP = 7;				 // Trailing SL trigger as a percentage of TP for US100
-input double US100m_OrderDistancePoints = 100;								 // Minimum distance in points for placing orders for US100
-input int US100m_ExpirationBars = 100;										 // Number of bars after which the order expires for US100
-input int US100m_NumberOfCandlesRange = 200;								 // Number of candles to consider for high/low search for US100
-input int US100m_BarsToLookBack = 5;										 // Number of bars to look back for swing high/low for US100
-input StartHour US100m_StartHour = 0;										 // Start hour for trading US100
-input EndHour US100m_EndHour = 0;											 // End hour for trading US100
-input ENUM_TIMEFRAMES US100m_Timeframe = PERIOD_CURRENT;					 // US100 trading timeframe
-input group "==== GBPUSD Parameters ====" input bool GBPUSDm_Enabled = true; // Enable GBPUSD trading
-input double GBPUSDm_TakeProfitPercentage = 0.2;							 // TP percentage for GBPUSD
-input double GBPUSDm_StopLossPercentage = 0.2;								 // SL percentage for GBPUSD
-input double GBPUSDm_TrailingStopLossAsPercentOfTP = 5;						 // Trailing SL as a percentage of TP for GBPUSD
-input double GBPUSDm_TrailingStopLossTriggerAsPercentOfTP = 7;				 // Trailing SL trigger as a percentage of TP for GBPUSD
-input double GBPUSDm_OrderDistancePoints = 100;								 // Minimum distance in points for placing orders for GBPUSD
-input int GBPUSDm_ExpirationBars = 100;										 // Number of bars after which the order expires for GBPUSD
-input int GBPUSDm_NumberOfCandlesRange = 200;								 // Number of candles to consider for high/low search for GBPUSD
-input int GBPUSDm_BarsToLookBack = 5;										 // Number of bars to look back for swing high/low for GBPUSD
-input StartHour GBPUSDm_StartHour = 0;										 // Start hour for trading GBPUSD
-input EndHour GBPUSDm_EndHour = 0;											 // End hour for trading GBPUSD
-input ENUM_TIMEFRAMES GBPUSDm_Timeframe = PERIOD_CURRENT;					 // GBPUSD trading timeframe
-input group "==== XAUUSD Parameters ====" input bool XAUUSDm_Enabled = true; // Enable XAUUSD trading
-input double XAUUSDm_TakeProfitPercentage = 0.2;							 // TP percentage for XAUUSD
-input double XAUUSDm_StopLossPercentage = 0.2;								 // SL percentage for XAUUSD
-input double XAUUSDm_TrailingStopLossAsPercentOfTP = 5;						 // Trailing SL as a percentage of TP for XAUUSD
-input double XAUUSDm_TrailingStopLossTriggerAsPercentOfTP = 7;				 // Trailing SL trigger as a percentage of TP for XAUUSD
-input double XAUUSDm_OrderDistancePoints = 100;								 // Minimum distance in points for placing orders for XAUUSD
-input int XAUUSDm_ExpirationBars = 100;										 // Number of bars after which the order expires for XAUUSD
-input int XAUUSDm_NumberOfCandlesRange = 200;								 // Number of candles to consider for high/low search for XAUUSD
-input int XAUUSDm_BarsToLookBack = 5;										 // Number of bars to look back for swing high/low for XAUUSD
-input StartHour XAUUSDm_StartHour = 0;										 // Start hour for trading XAUUSD
-input EndHour XAUUSDm_EndHour = 0;											 // End hour for trading XAUUSD
-input ENUM_TIMEFRAMES XAUUSDm_Timeframe = PERIOD_CURRENT;					 // XAUUSD trading timeframe
+input group "==== US30 Parameters ===="
+
+	input bool US30m_Enabled = false;						 // Enable US30 trading
+input double US30m_TakeProfitPercentage = 0.2;				 // TP percentage for US30
+input double US30m_StopLossPercentage = 0.2;				 // SL percentage for US30
+input double US30m_TrailingStopLossAsPercentOfTP = 5;		 // Trailing SL as a percentage of TP for US30
+input double US30m_TrailingStopLossTriggerAsPercentOfTP = 7; // Trailing SL trigger as a percentage of TP for US30
+input double US30m_OrderDistancePoints = 100;				 // Minimum distance in points for placing orders for US30
+input int US30m_ExpirationBars = 100;						 // Number of bars after which the order expires for US30
+input int US30m_NumberOfCandlesRange = 200;					 // Number of candles to consider for high/low search for US30
+input int US30m_BarsToLookBack = 5;							 // Number of bars to look back for swing high/low for US30
+input StartHour US30m_StartHour = 0;						 // Start hour for trading US30
+input EndHour US30m_EndHour = 0;							 // End hour for trading US30
+input ENUM_TIMEFRAMES US30m_Timeframe = PERIOD_CURRENT;		 // US30 trading timeframe
+
+input group "==== US100 Parameters ===="
+
+	input bool US100m_Enabled = false;						  // Enable US100 trading
+input double US100m_TakeProfitPercentage = 0.2;				  // TP percentage for US100
+input double US100m_StopLossPercentage = 0.2;				  // SL percentage for US100
+input double US100m_TrailingStopLossAsPercentOfTP = 5;		  // Trailing SL as a percentage of TP for US100
+input double US100m_TrailingStopLossTriggerAsPercentOfTP = 7; // Trailing SL trigger as a percentage of TP for US100
+input double US100m_OrderDistancePoints = 100;				  // Minimum distance in points for placing orders for US100
+input int US100m_ExpirationBars = 100;						  // Number of bars after which the order expires for US100
+input int US100m_NumberOfCandlesRange = 200;				  // Number of candles to consider for high/low search for US100
+input int US100m_BarsToLookBack = 5;						  // Number of bars to look back for swing high/low for US100
+input StartHour US100m_StartHour = 0;						  // Start hour for trading US100
+input EndHour US100m_EndHour = 0;							  // End hour for trading US100
+input ENUM_TIMEFRAMES US100m_Timeframe = PERIOD_CURRENT;	  // US100 trading timeframe
+
+input group "==== GBPUSD Parameters ===="
+
+	input bool GBPUSDm_Enabled = false;						   // Enable GBPUSD trading
+input double GBPUSDm_TakeProfitPercentage = 0.2;			   // TP percentage for GBPUSD
+input double GBPUSDm_StopLossPercentage = 0.2;				   // SL percentage for GBPUSD
+input double GBPUSDm_TrailingStopLossAsPercentOfTP = 5;		   // Trailing SL as a percentage of TP for GBPUSD
+input double GBPUSDm_TrailingStopLossTriggerAsPercentOfTP = 7; // Trailing SL trigger as a percentage of TP for GBPUSD
+input double GBPUSDm_OrderDistancePoints = 100;				   // Minimum distance in points for placing orders for GBPUSD
+input int GBPUSDm_ExpirationBars = 100;						   // Number of bars after which the order expires for GBPUSD
+input int GBPUSDm_NumberOfCandlesRange = 200;				   // Number of candles to consider for high/low search for GBPUSD
+input int GBPUSDm_BarsToLookBack = 5;						   // Number of bars to look back for swing high/low for GBPUSD
+input StartHour GBPUSDm_StartHour = 0;						   // Start hour for trading GBPUSD
+input EndHour GBPUSDm_EndHour = 0;							   // End hour for trading GBPUSD
+input ENUM_TIMEFRAMES GBPUSDm_Timeframe = PERIOD_CURRENT;	   // GBPUSD trading timeframe
+
+input group "==== XAUUSD Parameters ===="
+
+	input bool XAUUSDm_Enabled = false;						   // Enable XAUUSD trading
+input double XAUUSDm_TakeProfitPercentage = 0.2;			   // TP percentage for XAUUSD
+input double XAUUSDm_StopLossPercentage = 0.2;				   // SL percentage for XAUUSD
+input double XAUUSDm_TrailingStopLossAsPercentOfTP = 5;		   // Trailing SL as a percentage of TP for XAUUSD
+input double XAUUSDm_TrailingStopLossTriggerAsPercentOfTP = 7; // Trailing SL trigger as a percentage of TP for XAUUSD
+input double XAUUSDm_OrderDistancePoints = 100;				   // Minimum distance in points for placing orders for XAUUSD
+input int XAUUSDm_ExpirationBars = 100;						   // Number of bars after which the order expires for XAUUSD
+input int XAUUSDm_NumberOfCandlesRange = 200;				   // Number of candles to consider for high/low search for XAUUSD
+input int XAUUSDm_BarsToLookBack = 5;						   // Number of bars to look back for swing high/low for XAUUSD
+input StartHour XAUUSDm_StartHour = 0;						   // Start hour for trading XAUUSD
+input EndHour XAUUSDm_EndHour = 0;							   // End hour for trading XAUUSD
+input ENUM_TIMEFRAMES XAUUSDm_Timeframe = PERIOD_CURRENT;	   // XAUUSD trading timeframe
 //+------------------------------------------------------------------+
 //| News Event Structure                                             |
 //+------------------------------------------------------------------+
@@ -196,6 +217,8 @@ struct NewsEvent
 //+------------------------------------------------------------------+
 //| Global Variables                                                 |
 //+------------------------------------------------------------------+
+SwingPoint tradedSwings[]; // Array to store swing points that have been traded
+
 AssetConfig assetConfigs[] = {
 	{"BTCUSDm", BTCUSDm_Enabled, BTCUSDm_TakeProfitPercentage, BTCUSDm_StopLossPercentage, BTCUSDm_TrailingStopLossAsPercentOfTP, BTCUSDm_TrailingStopLossTriggerAsPercentOfTP, BTCUSDm_OrderDistancePoints, BTCUSDm_ExpirationBars, BTCUSDm_NumberOfCandlesRange, BTCUSDm_BarsToLookBack, BTCUSDm_StartHour, BTCUSDm_EndHour, BTCUSDm_Timeframe},
 	{"US30m", US30m_Enabled, US30m_TakeProfitPercentage, US30m_StopLossPercentage, US30m_TrailingStopLossAsPercentOfTP, US30m_TrailingStopLossTriggerAsPercentOfTP, US30m_OrderDistancePoints, US30m_ExpirationBars, US30m_NumberOfCandlesRange, US30m_BarsToLookBack, US30m_StartHour, US30m_EndHour, US30m_Timeframe},
@@ -311,15 +334,24 @@ int OnInit()
 	}
 
 	//--- create timer
-	trade.LogLevel(LOG_LEVEL_ERRORS);			// Set logging level
-	trade.SetExpertMagicNumber(MagicNumber);	// Set the magic number for trades
-	ChartSetInteger(0, CHART_SHOW_GRID, false); // Hide grid lines
-	// set the properties of the chart to be green on black
-	ChartSetInteger(0, CHART_COLOR_BACKGROUND, clrWhite);
-	ChartSetInteger(0, CHART_COLOR_CHART_UP, clrGreen);
-	ChartSetInteger(0, CHART_COLOR_CHART_DOWN, clrRed);
-	// set the chart to use candle stick style
-	ChartSetInteger(0, CHART_MODE, CHART_CANDLES);
+	trade.LogLevel(LOG_LEVEL_ERRORS);		 // Set logging level
+	trade.SetExpertMagicNumber(MagicNumber); // Set the magic number for trades
+
+	// Chart appearance settings
+	ChartSetInteger(0, CHART_SHOW_GRID, false);				   // Hide grid lines
+	ChartSetInteger(0, CHART_COLOR_BACKGROUND, clrWhite);	   // White background
+	ChartSetInteger(0, CHART_COLOR_FOREGROUND, clrBlack);	   // Black text
+	ChartSetInteger(0, CHART_COLOR_GRID, clrSilver);		   // Silver grid
+	ChartSetInteger(0, CHART_COLOR_CHART_UP, clrLimeGreen);	   // Bullish candle color
+	ChartSetInteger(0, CHART_COLOR_CHART_DOWN, clrRed);		   // Bearish candle color
+	ChartSetInteger(0, CHART_COLOR_CANDLE_BULL, clrLimeGreen); // Bullish candle fill color
+	ChartSetInteger(0, CHART_COLOR_CANDLE_BEAR, clrRed);	   // Bearish candle fill color
+	ChartSetInteger(0, CHART_COLOR_CHART_LINE, clrBlack);	   // Line chart color
+	ChartSetInteger(0, CHART_SHOW_VOLUMES, CHART_VOLUME_HIDE); // Hide volumes
+
+	// Set chart style to filled candles
+	ChartSetInteger(0, CHART_MODE, CHART_CANDLES);	   // Candlestick chart
+	ChartSetInteger(0, CHART_SHOW_OBJECT_DESCR, true); // Show object descriptions
 
 	// Initialize configurations for each asset
 	for (int i = 0; i < ArraySize(assetConfigs); i++)
@@ -582,6 +614,9 @@ void OnTick()
 			}
 		}
 	}
+
+	// Add position management
+	ManagePositions();
 }
 
 //+------------------------------------------------------------------+
@@ -685,6 +720,12 @@ double lotSizeOptimization(string symbol, double stopLossPoints)
 //+------------------------------------------------------------------+
 void SendSellOrder(string symbol, double entryPrice, double stopLossPoints, double takeProfitPoints, double orderDistancePoints, int expiration)
 {
+	// Check if this swing point has already been traded
+	if (IsSwingPointTraded(symbol, entryPrice, false))
+	{
+		return; // Skip if we've already traded this swing point
+	}
+
 	double currentPrice = SymbolInfoDouble(symbol, SYMBOL_BID);
 	if (currentPrice < entryPrice + orderDistancePoints * _Point)
 	{
@@ -703,7 +744,11 @@ void SendSellOrder(string symbol, double entryPrice, double stopLossPoints, doub
 	string tradeComments = tradeComment + " - Sell Order";
 	if (takeProfit <= currentPrice && stopLoss >= currentPrice)
 	{
-		trade.SellStop(lotSize, entryPrice, symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expirationTime, tradeComments);
+		if (trade.SellStop(lotSize, entryPrice, symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expirationTime, tradeComments))
+		{
+			// Add the swing point to our tracked list only if the order was placed successfully
+			AddTradedSwingPoint(symbol, entryPrice, false);
+		}
 	}
 	else
 	{
@@ -716,6 +761,12 @@ void SendSellOrder(string symbol, double entryPrice, double stopLossPoints, doub
 //+------------------------------------------------------------------+
 void SendBuyOrder(string symbol, double entryPrice, double stopLossPoints, double takeProfitPoints, double orderDistancePoints, int expiration)
 {
+	// Check if this swing point has already been traded
+	if (IsSwingPointTraded(symbol, entryPrice, true))
+	{
+		return; // Skip if we've already traded this swing point
+	}
+
 	double currentPrice = SymbolInfoDouble(symbol, SYMBOL_ASK);
 	if (currentPrice > entryPrice - orderDistancePoints * _Point)
 	{
@@ -734,7 +785,11 @@ void SendBuyOrder(string symbol, double entryPrice, double stopLossPoints, doubl
 	string tradeComments = tradeComment + " Buy Order";
 	if (takeProfit >= currentPrice && stopLoss <= currentPrice)
 	{
-		trade.BuyStop(lotSize, entryPrice, symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expirationTime, tradeComments);
+		if (trade.BuyStop(lotSize, entryPrice, symbol, stopLoss, takeProfit, ORDER_TIME_SPECIFIED, expirationTime, tradeComments))
+		{
+			// Add the swing point to our tracked list only if the order was placed successfully
+			AddTradedSwingPoint(symbol, entryPrice, true);
+		}
 	}
 	else
 	{
@@ -904,6 +959,202 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 		}
 
 		LogTradeClose(trans.position, closeReason);
+	}
+}
+
+//+------------------------------------------------------------------+
+
+bool IsSwingPointTraded(string symbol, double price, bool isHigh, int minimumBarsApart = 10)
+{
+	// Find the asset config for this symbol
+	double orderDistance = 0;
+	for (int i = 0; i < ArraySize(assetConfigs); i++)
+	{
+		if (assetConfigs[i].symbol == symbol)
+		{
+			orderDistance = assetConfigs[i].orderDistancePoints * _Point;
+			break;
+		}
+	}
+	PrintFormat("orderDistance: %.5f", orderDistance);
+	for (int i = 0; i < ArraySize(tradedSwings); i++)
+	{
+		// Check if the price is within the order distance of an existing swing point
+		if (MathAbs(price - tradedSwings[i].price) < orderDistance &&
+			tradedSwings[i].isHigh == isHigh &&
+			iBarShift(symbol, PERIOD_CURRENT, tradedSwings[i].time) < minimumBarsApart)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+//+------------------------------------------------------------------+
+//| Add a new swing point to the traded swings array                  |
+//+------------------------------------------------------------------+
+void AddTradedSwingPoint(string symbol, double price, bool isHigh)
+{
+	SwingPoint newSwing;
+	newSwing.price = price;
+	newSwing.time = TimeCurrent();
+	newSwing.isHigh = isHigh;
+	int size = ArraySize(tradedSwings);
+	ArrayResize(tradedSwings, size + 1);
+	tradedSwings[size] = newSwing;
+}
+
+//+------------------------------------------------------------------+
+//| Clean up old swing points                                         |
+//+------------------------------------------------------------------+
+void CleanupOldSwingPoints(string symbol, int maxBarsOld = 100)
+{
+	datetime currentTime = TimeCurrent();
+	int i = 0;
+	while (i < ArraySize(tradedSwings))
+	{
+		if (iBarShift(symbol, PERIOD_CURRENT, tradedSwings[i].time) > maxBarsOld)
+		{
+			// Remove old swing point
+			for (int j = i; j < ArraySize(tradedSwings) - 1; j++)
+			{
+				tradedSwings[j] = tradedSwings[j + 1];
+			}
+			ArrayResize(tradedSwings, ArraySize(tradedSwings) - 1);
+		}
+		else
+		{
+			i++;
+		}
+	}
+}
+
+//+------------------------------------------------------------------+
+//| Calculate average spread without indicators                        |
+//+------------------------------------------------------------------+
+double GetAverageSpread(string symbol)
+{
+	double totalSpread = 0;
+	int count = 0;
+
+	for (int i = 1; i <= 10; i++)
+	{
+		double high = iHigh(symbol, PERIOD_CURRENT, i);
+		double low = iLow(symbol, PERIOD_CURRENT, i);
+		totalSpread += high - low;
+		count++;
+	}
+
+	return totalSpread / count;
+}
+
+//+------------------------------------------------------------------+
+//| Check if breakout is failing                                      |
+//+------------------------------------------------------------------+
+bool IsBreakoutFailing(string symbol, double entryPrice, bool isBuy, int minBars = 5, int maxBars = 8)
+{
+	int failureCount = 0;
+	double totalMove = 0;
+	double highestHigh = entryPrice;
+	double lowestLow = entryPrice;
+
+	// Dynamic threshold based on recent price movement
+	double priceRange = 0;
+	for (int i = 1; i <= 5; i++)
+	{
+		double high = iHigh(symbol, PERIOD_CURRENT, i);
+		double low = iLow(symbol, PERIOD_CURRENT, i);
+		priceRange = MathMax(priceRange, high - low);
+	}
+	double failureThreshold = priceRange * 0.3; // 30% of recent range
+
+	if (isBuy)
+	{
+		for (int i = 1; i <= maxBars; i++)
+		{
+			double close = iClose(symbol, PERIOD_CURRENT, i);
+			double open = iOpen(symbol, PERIOD_CURRENT, i);
+			double high = iHigh(symbol, PERIOD_CURRENT, i);
+			double low = iLow(symbol, PERIOD_CURRENT, i);
+
+			highestHigh = MathMax(highestHigh, high);
+			lowestLow = MathMin(lowestLow, low);
+
+			// Count bearish closes below entry
+			if (close < entryPrice - failureThreshold && close < open)
+			{
+				failureCount++;
+			}
+			totalMove += close - open;
+		}
+		// For buy trades, check if price is making lower lows
+		bool makingLowerLows = (lowestLow < entryPrice - failureThreshold);
+		bool notMakingHigherHighs = (highestHigh < entryPrice + failureThreshold);
+
+		return (failureCount >= 3 && makingLowerLows && notMakingHigherHighs);
+	}
+	else
+	{
+		for (int i = 1; i <= maxBars; i++)
+		{
+			double close = iClose(symbol, PERIOD_CURRENT, i);
+			double open = iOpen(symbol, PERIOD_CURRENT, i);
+			double high = iHigh(symbol, PERIOD_CURRENT, i);
+			double low = iLow(symbol, PERIOD_CURRENT, i);
+
+			highestHigh = MathMax(highestHigh, high);
+			lowestLow = MathMin(lowestLow, low);
+
+			// Count bullish closes above entry
+			if (close > entryPrice + failureThreshold && close > open)
+			{
+				failureCount++;
+			}
+			totalMove += close - open;
+		}
+		// For sell trades, check if price is making higher highs
+		bool makingHigherHighs = (highestHigh > entryPrice + failureThreshold);
+		bool notMakingLowerLows = (lowestLow > entryPrice - failureThreshold);
+
+		return (failureCount >= 3 && makingHigherHighs && notMakingLowerLows);
+	}
+}
+
+//+------------------------------------------------------------------+
+//| Position management implementation                                 |
+//+------------------------------------------------------------------+
+void ManagePositions()
+{
+	for (int i = PositionsTotal() - 1; i >= 0; i--)
+	{
+		if (positionInfo.SelectByIndex(i))
+		{
+			if (positionInfo.Magic() == MagicNumber)
+			{
+				string symbol = positionInfo.Symbol();
+				double entryPrice = positionInfo.PriceOpen();
+				bool isBuy = (positionInfo.PositionType() == POSITION_TYPE_BUY);
+				// Only check after minimum bars have passed
+				int barsSinceEntry = iBarShift(symbol, PERIOD_CURRENT,
+											   positionInfo.Time());
+				if (barsSinceEntry >= 5 && barsSinceEntry <= 8)
+				{
+					// Check for normal market spread
+					double currentSpread = SymbolInfoDouble(symbol, SYMBOL_ASK) -
+										   SymbolInfoDouble(symbol, SYMBOL_BID);
+					double avgSpread = GetAverageSpread(symbol);
+					// Only act if spread is normal
+					if (currentSpread <= avgSpread * 1.5)
+					{
+						if (IsBreakoutFailing(symbol, entryPrice, isBuy))
+						{
+							trade.PositionClose(positionInfo.Ticket());
+							Print("Closing position due to confirmed breakout failure");
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
